@@ -92,9 +92,7 @@ StoragePtr StorageFactory::get(
         if (query.storage)
             throw Exception("Specifying ENGINE is not allowed for a LiveChannel", ErrorCodes::INCORRECT_QUERY);
 
-        return StorageLiveChannel::create(
-            table_name, database_name, local_context, query, columns,
-            materialized_columns, alias_columns, column_defaults);
+        name = "LiveChannel";
     }
     else
     {
