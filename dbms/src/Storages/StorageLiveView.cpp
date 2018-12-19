@@ -24,6 +24,7 @@ limitations under the License. */
 
 #include <Storages/StorageLiveView.h>
 #include <Storages/StorageFactory.h>
+#include <Parsers/ASTTablesInSelectQuery.h>
 
 namespace DB
 {
@@ -38,22 +39,28 @@ namespace ErrorCodes
 
 static void extractDependentTable(const ASTSelectQuery & query, String & select_database_name, String & select_table_name)
 {
-    auto query_table = query.table();
+    const ASTTablesInSelectQuery & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*query.tables);
+    if (tables_in_select_query.children.empty())
+        return;
+
+    const ASTTablesInSelectQueryElement & tables_element =
+            static_cast<const ASTTablesInSelectQueryElement &>(*tables_in_select_query.children.at(0));
+    ASTPtr query_table = tables_element.table_expression;
 
     if (!query_table)
         return;
 
     if (auto ast_id = typeid_cast<const ASTIdentifier *>(query_table.get()))
     {
-        auto query_database = query.database();
-
-        if (!query_database)
+        if (ast_id->children.size() != 2)
+        {
             throw Exception("Logical error while creating StorageLiveView."
-                " Could not retrieve database name from select query.",
-                DB::ErrorCodes::LOGICAL_ERROR);
+                            " Could not retrieve database name from select query (" + ast_id->name + ").",
+                            DB::ErrorCodes::LOGICAL_ERROR);
+        }
 
-        select_database_name = typeid_cast<const ASTIdentifier &>(*query_database).name;
-        select_table_name = ast_id->name;
+        select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
+        select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
     }
     else if (auto ast_select = typeid_cast<const ASTSelectQuery *>(query_table.get()))
     {
