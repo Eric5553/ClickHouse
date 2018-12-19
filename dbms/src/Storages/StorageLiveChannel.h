@@ -40,7 +40,6 @@ public:
     /// It is passed inside the query and solved at its level.
     bool supportsSampling() const override { return true; }
     bool supportsFinal() const override { return true; }
-    bool supportsParallelReplicas() const override { return true; }
 
     /// Mutex for the blocks and ready condition
     Poco::FastMutex mutex;

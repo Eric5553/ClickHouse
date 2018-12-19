@@ -148,7 +148,7 @@ bool StorageLiveView::getNewBlocks()
     return updated;
 }
 
-bool StorageLiveView::checkTableCanBeDropped() const
+void StorageLiveView::checkTableCanBeDropped() const
 {
     Dependencies dependencies = global_context.getDependencies(database_name, table_name);
     if (!dependencies.empty())
@@ -156,7 +156,6 @@ bool StorageLiveView::checkTableCanBeDropped() const
         DatabaseAndTableName database_and_table_name = dependencies.front();
         throw Exception("Table has dependency " + database_and_table_name.first + "." + database_and_table_name.second, ErrorCodes::TABLE_WAS_NOT_DROPPED);
     }
-    return true;
 }
 
 void StorageLiveView::noUsersThread()
@@ -278,7 +277,7 @@ BlockInputStreams StorageLiveView::read(
     const Names & column_names,
     const SelectQueryInfo & query_info,
     const Context & context,
-    QueryProcessingStage::Enum & processed_stage,
+    QueryProcessingStage::Enum /*processed_stage*/,
     const size_t max_block_size,
     const unsigned num_streams)
 {
@@ -291,7 +290,6 @@ BlockInputStreams StorageLiveView::read(
         if ( getNewBlocks() )
             condition.broadcast();
     }
-    processed_stage = QueryProcessingStage::Complete;
     return { std::make_shared<BlocksBlockInputStream>(stream_blocks_ptr) };
 }
 
