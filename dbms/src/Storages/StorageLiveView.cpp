@@ -66,7 +66,7 @@ static void extractDependentTable(const ASTPtr & query, String & select_database
         select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
         select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
     }
-    else if (auto ast_select = typeid_cast<const ASTSelectQuery *>(query_table.get()))
+    else if (typeid_cast<const ASTSelectQuery *>(query_table.get()))
     {
         extractDependentTable(query_table, select_database_name, select_table_name);
     }
