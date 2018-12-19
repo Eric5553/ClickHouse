@@ -82,11 +82,11 @@ BlockIO InterpreterAlterQuery::execute()
 
     if (!partition_commands.empty())
     {
-        partition_commands.validate(table);
+        partition_commands.validate(*table);
         table->alterPartition(query_ptr, partition_commands, context);
     }
 
-    parameter_commands.validate(table);
+    parameter_commands.validate(*table);
     for (const ParameterCommand & command : parameter_commands)
     {
         switch (command.type)
@@ -105,7 +105,7 @@ BlockIO InterpreterAlterQuery::execute()
         }
     }
 
-    channel_commands.validate(table);
+    channel_commands.validate(*table);
     for (const ChannelCommand & command : channel_commands)
     {
         auto channel = std::dynamic_pointer_cast<StorageLiveChannel>(table);
@@ -146,7 +146,7 @@ BlockIO InterpreterAlterQuery::execute()
     return {};
 }
 
-void ParameterCommands::validate(const IStorage & table)
+void ParameterCommands::validate(const IStorage & /*table*/)
 {
     //FIXME: add check
 }
