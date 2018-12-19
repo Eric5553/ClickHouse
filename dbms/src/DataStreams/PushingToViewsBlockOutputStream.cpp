@@ -233,7 +233,7 @@ static void writeIntoLiveView(StorageLiveView & live_view,
             blocks->front().info.hash = key.toHexString();
         }
         auto sample_block = blocks->front().cloneEmpty();
-        BlockInputStreamPtr new_data = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(blocks));
+        BlockInputStreamPtr new_data = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(blocks), sample_block);
         {
             Poco::FastMutex::ScopedLock lock(live_view.mutex);
             copyData(*new_data, *output);
