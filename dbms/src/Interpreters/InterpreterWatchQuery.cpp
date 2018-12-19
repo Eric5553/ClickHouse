@@ -56,7 +56,7 @@ BlockIO InterpreterWatchQuery::execute()
     const Settings & settings = context.getSettingsRef();
 
     /// Limitation on the number of columns to read.
-    if (settings.limits.max_columns_to_read && required_columns.size() > settings.limits.max_columns_to_read)
+    if (settings.max_columns_to_read && required_columns.size() > settings.max_columns_to_read)
         throw Exception("Limit for number of columns to read exceeded. "
             "Requested: " + toString(required_columns.size())
             + ", maximum: " + settings.limits.max_columns_to_read.toString(),
@@ -84,9 +84,9 @@ BlockIO InterpreterWatchQuery::execute()
         {
             IProfilingBlockInputStream::LocalLimits limits;
             limits.mode = IProfilingBlockInputStream::LIMITS_CURRENT;
-            limits.max_rows_to_read = settings.limits.max_result_rows;
-            limits.max_bytes_to_read = settings.limits.max_result_bytes;
-            limits.read_overflow_mode = settings.limits.result_overflow_mode;
+            limits.size_limits.max_rows = settings.max_result_rows;
+            limits.size_limits.max_bytes = settings.max_result_bytes;
+            limits.size_limits.overflow_mode = settings.result_overflow_mode;
 
             stream->setLimits(limits);
             stream->setQuota(context.getQuota());
@@ -94,9 +94,9 @@ BlockIO InterpreterWatchQuery::execute()
     }
 
     res.in = streams[0];
-    res.in_sample = storage->getSampleBlock();
-    // FIXME: should be property of the stream and not the table
-    res.in_sample.info.is_multiplexed = storage->isMultiplexer();
+//    res.in_sample = storage->getSampleBlock();
+//    // FIXME: should be property of the stream and not the table
+//    res.in_sample.info.is_multiplexed = storage->isMultiplexer();
 
     return res;
 }

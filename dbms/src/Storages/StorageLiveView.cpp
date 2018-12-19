@@ -88,7 +88,9 @@ StorageLiveView::StorageLiveView(
             DatabaseAndTableName(database_name, table_name));
 
     inner_query = query.select->ptr();
-    is_temporary = query.is_temporary;
+    is_temporary = query.temporary;
+    auto storage = local_context.getTable(select_database_name, select_table_name);
+    sample_block = InterpreterSelectQuery(inner_query, local_context, storage).getSampleBlock();
 
     blocks_ptr = std::make_shared<BlocksPtr>();
     active_ptr = std::make_shared<bool>(true);
@@ -290,7 +292,7 @@ BlockInputStreams StorageLiveView::read(
         if ( getNewBlocks() )
             condition.broadcast();
     }
-    return { std::make_shared<BlocksBlockInputStream>(stream_blocks_ptr) };
+    return { std::make_shared<BlocksBlockInputStream>(stream_blocks_ptr, sample_block) };
 }
 
 BlockInputStreams StorageLiveView::watch(

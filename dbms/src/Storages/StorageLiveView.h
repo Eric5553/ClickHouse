@@ -125,6 +125,7 @@ private:
     Context & global_context;
     NamesAndTypesListPtr columns;
     bool is_temporary {false};
+    Block sample_block;
 
     /// Active users
     std::shared_ptr<bool> active_ptr;
