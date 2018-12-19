@@ -37,9 +37,13 @@ namespace ErrorCodes
 }
 
 
-static void extractDependentTable(const ASTSelectQuery & query, String & select_database_name, String & select_table_name)
+static void extractDependentTable(const ASTPtr & query, String & select_database_name, String & select_table_name)
 {
-    const ASTTablesInSelectQuery & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*query.tables);
+    auto select = typeid_cast<const ASTSelectQuery *>(query.get());
+    if (!select)
+        return;
+
+    const ASTTablesInSelectQuery & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*select->tables);
     if (tables_in_select_query.children.empty())
         return;
 
@@ -85,7 +89,7 @@ StorageLiveView::StorageLiveView(
     if (!query.select)
         throw Exception("SELECT query is not specified for " + getName(), ErrorCodes::INCORRECT_QUERY);
 
-    extractDependentTable(*query.select, select_database_name, select_table_name);
+    extractDependentTable(query.select->list_of_selects.children.at(0), select_database_name, select_table_name);
 
     if (!select_table_name.empty())
         global_context.addDependency(
