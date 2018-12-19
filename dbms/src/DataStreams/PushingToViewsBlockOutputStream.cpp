@@ -187,7 +187,7 @@ static void writeIntoLiveView(StorageLiveView & live_view,
         {
             auto sample_block = mergeable_blocks->front()->front();
             auto sample_new_block = new_mergeable_blocks->front();
-            for (auto col : sample_new_block.getColumns())
+            for (auto col : sample_new_block)
             {
                 for (auto & new_block : *new_mergeable_blocks)
                 {
@@ -252,7 +252,7 @@ void PushingToViewsBlockOutputStream::write(const Block & block)
     {
         writeIntoLiveView(*live_view, block, *views_context, output);
     }
-    else if (auto * live_channel = typeid_cast<const StorageLiveChannel *>(storage.get()))
+    else if (typeid_cast<const StorageLiveChannel *>(storage.get()))
     {
         /// Send only end of frame block to channel to signal that
         /// new data is available

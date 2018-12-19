@@ -147,7 +147,7 @@ class LiveChannelBlockOutputStream : public IBlockOutputStream
 public:
     explicit LiveChannelBlockOutputStream(StorageLiveChannel & storage_) : storage(storage_) {}
 
-    void write(const Block & block) override
+    void write(const Block & /*block*/) override
     {
         Poco::FastMutex::ScopedLock lock(storage.mutex);
         ++(*storage.version);
