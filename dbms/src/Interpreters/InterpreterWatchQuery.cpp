@@ -50,7 +50,7 @@ BlockIO InterpreterWatchQuery::execute()
     storage = context.getTable(database, table);
 
     /// List of columns to read to execute the query.
-    Names required_columns = storage->getColumnNamesList();
+    Names required_columns = storage->getColumns().getNamesOfPhysical();
 
     /// Get context settings for this query
     const Settings & settings = context.getSettingsRef();
@@ -58,8 +58,8 @@ BlockIO InterpreterWatchQuery::execute()
     /// Limitation on the number of columns to read.
     if (settings.max_columns_to_read && required_columns.size() > settings.max_columns_to_read)
         throw Exception("Limit for number of columns to read exceeded. "
-            "Requested: " + toString(required_columns.size())
-            + ", maximum: " + settings.limits.max_columns_to_read.toString(),
+            "Requested: " + std::to_string(required_columns.size())
+            + ", maximum: " + settings.max_columns_to_read.toString(),
             ErrorCodes::TOO_MUCH_COLUMNS);
 
     size_t max_block_size = settings.max_block_size;

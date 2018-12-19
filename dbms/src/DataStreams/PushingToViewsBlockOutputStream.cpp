@@ -202,7 +202,8 @@ static void writeIntoLiveView(StorageLiveView & live_view,
         /// Create from blocks streams
         for (auto & blocks : *mergeable_blocks)
         {
-            BlockInputStreamPtr stream = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(blocks));
+            auto sample_block = mergeable_blocks->front()->front();
+            BlockInputStreamPtr stream = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(blocks), sample_block);
             from.push_back(std::move(stream));
         }
     }
