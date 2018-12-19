@@ -68,7 +68,7 @@ static void extractDependentTable(const ASTPtr & query, String & select_database
     }
     else if (auto ast_select = typeid_cast<const ASTSelectQuery *>(query_table.get()))
     {
-        extractDependentTable(*ast_select, select_database_name, select_table_name);
+        extractDependentTable(query_table, select_database_name, select_table_name);
     }
     else
         throw Exception("Logical error while creating StorageLiveView."
