@@ -75,6 +75,17 @@ private:
             res.values = values;
             return res;
         }
+
+        static std::optional<ParameterCommand> parse(ASTAlterCommand * command)
+        {
+            if (command->type == ASTAlterCommand::ADD_TO_PARAMETER)
+                return addToParameter(command->parameter, command->values);
+            if (command->type == ASTAlterCommand::DROP_FROM_PARAMETER)
+                return addToParameter(command->parameter, command->values);
+            if (command->type == ASTAlterCommand::MODIFY_PARAMETER)
+                return addToParameter(command->parameter, command->values);
+            return {};
+        }
     };
 
     struct ChannelCommand
@@ -139,6 +150,23 @@ private:
             res.type = MODIFY;
             res.values = values;
             return res;
+        }
+
+        static std::optional<ChannelCommand> parse(ASTAlterCommand * command)
+        {
+            if (command->type == ASTAlterCommand::CHANNEL_ADD)
+                return add(command->values);
+            if (command->type == ASTAlterCommand::CHANNEL_DROP)
+                return drop(command->values);
+            if (command->type == ASTAlterCommand::CHANNEL_SUSPEND)
+                return suspend(command->values);
+            if (command->type == ASTAlterCommand::CHANNEL_RESUME)
+                return resume(command->values);
+            if (command->type == ASTAlterCommand::CHANNEL_REFRESH)
+                return refresh(command->values);
+            if (command->type == ASTAlterCommand::CHANNEL_MODIFY)
+                return modify(command->values);
+            return {};
         }
     };
 
