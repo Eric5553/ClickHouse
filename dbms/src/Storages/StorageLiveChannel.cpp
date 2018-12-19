@@ -22,6 +22,7 @@ limitations under the License. */
 #include <Storages/StorageLiveView.h>
 #include <Storages/StorageLiveChannel.h>
 #include <DataStreams/LiveChannelBlockInputStream.h>
+#include <Storages/StorageFactory.h>
 
 namespace DB
 {
@@ -38,11 +39,8 @@ StorageLiveChannel::StorageLiveChannel(
     const String & database_name_,
     Context & local_context,
     const ASTCreateQuery & query,
-    NamesAndTypesListPtr columns_,
-    const NamesAndTypesList & materialized_columns_,
-    const NamesAndTypesList & alias_columns_,
-    const ColumnDefaults & column_defaults_)
-    : IStorage{materialized_columns_, alias_columns_, column_defaults_}, table_name(table_name_),
+    const ColumnsDescription & columns)
+    : IStorage(columns), table_name(table_name_),
     database_name(database_name_), global_context(local_context.getGlobalContext()), columns(columns_)
 {
     if (!query.tables)
@@ -936,6 +934,15 @@ void StorageLiveChannel::resumeInChannel(const ASTPtr & values, const Context & 
         if (wait_ms <= std::chrono::milliseconds(0))
             throw Exception("Channel RESUME query timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     }
+}
+
+void registerStorageLiveChannel(StorageFactory & factory)
+{
+    factory.registerStorage("LiveChannel", [](const StorageFactory::Arguments & args)
+    {
+        StorageLiveChannel::create(
+                args.table_name, args.database_name, args.local_context, args.query, args.columns);
+    });
 }
 
 }

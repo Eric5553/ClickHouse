@@ -23,6 +23,7 @@ limitations under the License. */
 #include <Common/typeid_cast.h>
 
 #include <Storages/StorageLiveView.h>
+#include <Storages/StorageFactory.h>
 
 namespace DB
 {
@@ -70,12 +71,9 @@ StorageLiveView::StorageLiveView(
     const String & database_name_,
     Context & local_context,
     const ASTCreateQuery & query,
-    NamesAndTypesListPtr columns_,
-    const NamesAndTypesList & materialized_columns_,
-    const NamesAndTypesList & alias_columns_,
-    const ColumnDefaults & column_defaults_)
-    : IStorage{materialized_columns_, alias_columns_, column_defaults_}, table_name(table_name_),
-    database_name(database_name_), global_context(local_context.getGlobalContext()), columns(columns_)
+    const ColumnsDescription & columns)
+    : IStorage(columns), table_name(table_name_),
+    database_name(database_name_), global_context(local_context.getGlobalContext())
 {
     if (!query.select)
         throw Exception("SELECT query is not specified for " + getName(), ErrorCodes::INCORRECT_QUERY);
@@ -337,6 +335,15 @@ BlockInputStreams StorageLiveView::watch(
 BlockOutputStreamPtr StorageLiveView::write(const ASTPtr & query, const Settings & settings)
 {
     return std::make_shared<LiveBlockOutputStream>(*this);
+}
+
+void registerStorageLiveView(StorageFactory & factory)
+{
+    factory.registerStorage("LiveView", [](const StorageFactory::Arguments & args)
+    {
+        StorageLiveView::create(
+                args.table_name, args.database_name, args.local_context, args.query, args.columns);
+    });
 }
 
 }

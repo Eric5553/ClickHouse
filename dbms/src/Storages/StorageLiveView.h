@@ -123,7 +123,6 @@ private:
     String database_name;
     ASTPtr inner_query;
     Context & global_context;
-    NamesAndTypesListPtr columns;
     bool is_temporary {false};
     Block sample_block;
 
@@ -148,10 +147,8 @@ private:
         const String & database_name_,
         Context & local_context,
         const ASTCreateQuery & query,
-        NamesAndTypesListPtr columns_,
-        const NamesAndTypesList & materialized_columns_,
-        const NamesAndTypesList & alias_columns_,
-        const ColumnDefaults & column_defaults_);
+        const ColumnsDescription & columns
+    );
 };
 
 class LiveBlockOutputStream : public IBlockOutputStream

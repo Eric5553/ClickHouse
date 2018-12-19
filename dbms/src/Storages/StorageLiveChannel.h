@@ -99,7 +99,6 @@ private:
     String table_name;
     String database_name;
     Context & global_context;
-    NamesAndTypesListPtr columns;
     LiveChannelTables tables;
     bool is_temporary {false};
 
@@ -124,10 +123,7 @@ private:
         const String & database_name_,
         Context & local_context,
         const ASTCreateQuery & query,
-        NamesAndTypesListPtr columns_,
-        const NamesAndTypesList & materialized_columns_,
-        const NamesAndTypesList & alias_columns_,
-        const ColumnDefaults & column_defaults_);
+        const ColumnsDescription & columns);
 
     using StorageList = std::list<StoragePtr>;
     using StorageListPtr = std::shared_ptr<StorageList>;
