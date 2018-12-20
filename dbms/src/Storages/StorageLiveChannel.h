@@ -93,7 +93,7 @@ public:
         const Context & context,
         QueryProcessingStage::Enum & processed_stage,
         size_t max_block_size,
-        unsigned num_streams);
+        unsigned num_streams) override;
 
 private:
     String table_name;
@@ -150,6 +150,9 @@ public:
         /// notify all readers
         storage.condition.broadcast();
     }
+
+    Block getHeader() const override { return {}; }
+
 private:
     StorageLiveChannel & storage;
 };
