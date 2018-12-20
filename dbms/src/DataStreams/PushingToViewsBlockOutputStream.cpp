@@ -48,7 +48,7 @@ public:
     bool supportsReplication() const override { return storage->supportsReplication(); }
     bool supportsDeduplication() const override { return storage->supportsDeduplication(); }
 
-    QueryProcessingStage::Enum getQueryProcessingStage(const Context & context) const override { return QueryProcessingStage::WithMergableState; }
+    QueryProcessingStage::Enum getQueryProcessingStage(const Context & /*context*/) const override { return QueryProcessingStage::WithMergeableState; }
 
     BlockInputStreams read(
             const Names & /*column_names*/,
@@ -80,7 +80,7 @@ private:
 
 StoragePtr createProxyStorage(StoragePtr storage, BlockInputStreams streams)
 {
-    retur std::make_shared<ProxyStorage>(sttd::move(storage), std::move(streams));
+    retur std::make_shared<ProxyStorage>(std::move(storage), std::move(streams));
 }
 
 PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
