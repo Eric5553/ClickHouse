@@ -116,6 +116,8 @@ public:
     /// Read new data blocks that store query result
     bool getNewBlocks();
 
+    Block getHeader() const { return sample_block; }
+
 private:
     String select_database_name;
     String select_table_name;

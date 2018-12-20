@@ -124,7 +124,7 @@ bool StorageLiveView::getNewBlocks()
     mergeable_blocks = std::make_shared<std::vector<BlocksPtr>>();
     mergeable_blocks->push_back(new_mergeable_blocks);
 
-    BlockInputStreamPtr from = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(new_mergeable_blocks));
+    BlockInputStreamPtr from = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(new_mergeable_blocks), sample_block);
     auto proxy_storage = createProxyStorage(global_context.getTable(select_database_name, select_table_name), {from});
     InterpreterSelectQuery select(inner_query->clone(), global_context, proxy_storage, QueryProcessingStage::Complete);
     BlockInputStreamPtr data = std::make_shared<MaterializingBlockInputStream>(select.execute().in);

@@ -60,6 +60,8 @@ public:
         condition.broadcast();
     }
 
+    Block getHeader() const { return storage->getHeader(); }
+
     void setHeartbeatCallback(const HeartbeatCallback & callback)
     {
         heartbeat_callback = callback;
