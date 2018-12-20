@@ -74,7 +74,7 @@ static void extractDependentTable(const Context & context, const ASTPtr & query,
         else
         {
             select_database_name = context.getCurrentDatabase();
-            select_table_name = ast_id.name;
+            select_table_name = ast_id->name;
         }
     }
     else if (table_expression->subquery)
