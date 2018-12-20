@@ -89,7 +89,7 @@ StorageLiveView::StorageLiveView(
     if (!query.select)
         throw Exception("SELECT query is not specified for " + getName(), ErrorCodes::INCORRECT_QUERY);
 
-    extractDependentTable(query.select->list_of_selects.children.at(0), select_database_name, select_table_name);
+    extractDependentTable(query.select->list_of_selects->children.at(0), select_database_name, select_table_name);
 
     if (!select_table_name.empty())
         global_context.addDependency(
@@ -125,7 +125,7 @@ bool StorageLiveView::getNewBlocks()
     mergeable_blocks->push_back(new_mergeable_blocks);
 
     BlockInputStreamPtr from = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(new_mergeable_blocks));
-    auto proxy_storage = createProxyStorage(global_context.getTable(select_database_name, select_table_name), std::move(from));
+    auto proxy_storage = createProxyStorage(global_context.getTable(select_database_name, select_table_name), {from});
     InterpreterSelectQuery select(inner_query->clone(), global_context, proxy_storage, QueryProcessingStage::Complete);
     BlockInputStreamPtr data = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
 
@@ -308,12 +308,12 @@ BlockInputStreams StorageLiveView::read(
 }
 
 BlockInputStreams StorageLiveView::watch(
-    const Names & column_names,
+    const Names & /*column_names*/,
     const SelectQueryInfo & query_info,
-    const Context & context,
+    const Context & /*context*/,
     QueryProcessingStage::Enum & processed_stage,
-    size_t max_block_size,
-    const unsigned num_streams)
+    size_t /*max_block_size*/,
+    const unsigned /*num_streams*/)
 {
     ASTWatchQuery & query = typeid_cast<ASTWatchQuery &>(*query_info.query);
 
