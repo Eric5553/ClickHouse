@@ -39,43 +39,43 @@ namespace ErrorCodes
 
 static void extractDependentTable(const ASTPtr & query, String & select_database_name, String & select_table_name)
 {
+    auto throwCannotGetTable = []()
+    {
+        throw Exception("Logical error while creating StorageLiveView."
+                        " Could not retrieve table name from select query.",
+                        DB::ErrorCodes::LOGICAL_ERROR);
+    };
+
     auto select = typeid_cast<const ASTSelectQuery *>(query.get());
     if (!select)
-        return;
+        throwCannotGetTable();
 
-    const ASTTablesInSelectQuery & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*select->tables);
+    auto & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*select->tables);
     if (tables_in_select_query.children.empty())
-        return;
+        throwCannotGetTable();
 
-    const ASTTablesInSelectQueryElement & tables_element =
+    auto & tables_element =
             static_cast<const ASTTablesInSelectQueryElement &>(*tables_in_select_query.children.at(0));
-    auto & table_expression_ptr = tables_element.table_expression;
 
-    if (!table_expression_ptr)
-        return;
+    if (!tables_element.table_expression)
+        throwCannotGetTable();
 
-    auto * table_expression = static_cast<const ASTTableExpression *>(table_expression_ptr.get());
+    auto * table_expression = static_cast<const ASTTableExpression *>(tables_element.table_expression.get());
 
-    if (auto ast_id = typeid_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get()))
+    if (table_expression->database_and_table_name)
     {
+        auto ast_id = static_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get()))
+
         if (ast_id->children.size() != 2)
-        {
-            throw Exception("Logical error while creating StorageLiveView."
-                            " Could not retrieve database name from select query (" + ast_id->name + ").",
-                            DB::ErrorCodes::LOGICAL_ERROR);
-        }
+            throwCannotGetTable();
 
         select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
         select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
     }
-    else if (typeid_cast<const ASTSelectQuery *>(query_table.get()))
-    {
-        extractDependentTable(query_table, select_database_name, select_table_name);
-    }
+    else if (table_expression->subquery)
+        extractDependentTable(table_expression->subquery, select_database_name, select_table_name);
     else
-        throw Exception("Logical error while creating StorageLiveView."
-            " Could not retrieve table name from select query.",
-            DB::ErrorCodes::LOGICAL_ERROR);
+        throwCannotGetTable();
 }
 
 
