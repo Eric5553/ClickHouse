@@ -60,7 +60,7 @@ public:
         condition.broadcast();
     }
 
-    Block getHeader() const { return storage->getHeader(); }
+    Block getHeader() const override { return storage.getHeader(); }
 
     void setHeartbeatCallback(const HeartbeatCallback & callback)
     {
