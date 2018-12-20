@@ -178,6 +178,8 @@ public:
         }
     }
 
+    Block getHeader() const override { return storage.getHeader(); }
+
 private:
     BlocksPtr new_blocks;
     String new_hash_key;
