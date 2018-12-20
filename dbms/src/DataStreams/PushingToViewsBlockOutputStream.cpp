@@ -80,7 +80,7 @@ private:
 
 StoragePtr createProxyStorage(StoragePtr storage, BlockInputStreams streams)
 {
-    retur std::make_shared<ProxyStorage>(std::move(storage), std::move(streams));
+    return std::make_shared<ProxyStorage>(std::move(storage), std::move(streams));
 }
 
 PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
