@@ -41,7 +41,7 @@ StorageLiveChannel::StorageLiveChannel(
     const ASTCreateQuery & query,
     const ColumnsDescription & columns)
     : IStorage(columns), table_name(table_name_),
-    database_name(database_name_), global_context(local_context.getGlobalContext()), columns(columns_)
+    database_name(database_name_), global_context(local_context.getGlobalContext()), columns(columns)
 {
     if (!query.tables)
         throw Exception("No tables are specified for channel " + getName(), ErrorCodes::INCORRECT_QUERY);
@@ -74,7 +74,7 @@ StorageLiveChannel::StorageLiveChannel(
             DatabaseAndTableName(database_name, table_name));
     }
 
-    is_temporary = query.is_temporary;
+    is_temporary = query.temporary;
     /// start at version 0
     version = std::make_shared<UInt64>(0);
     storage_list_version = std::make_shared<UInt64>(0);

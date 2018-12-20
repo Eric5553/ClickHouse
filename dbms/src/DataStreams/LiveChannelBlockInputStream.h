@@ -98,7 +98,10 @@ public:
         end = selected_streams->end();
     }
 
-    Block getHeader() const override { return {} }; /// TODO
+    Block getHeader() const override {
+        Block header; /// TODO
+        header.info.is_multiplexed = true;
+    }
 
     String getName() const override { return "LiveChannelBlockInputStream"; }
 
