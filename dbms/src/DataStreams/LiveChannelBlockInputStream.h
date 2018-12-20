@@ -98,20 +98,15 @@ public:
         end = selected_streams->end();
     }
 
+    Block getHeader() const override { return {} }; /// TODO
+
     String getName() const override { return "LiveChannelBlockInputStream"; }
 
-    String getID() const override
-    {
-        std::stringstream res;
-        res << this;
-        return res.str();
-    }
-
-    void cancel() override
+    void cancel(bool kill) override
     {
         if (isCancelled() || storage.is_dropped)
             return;
-        IProfilingBlockInputStream::cancel();
+        IProfilingBlockInputStream::cancel(kill);
         Poco::FastMutex::ScopedLock lock(mutex);
         condition.broadcast();
     }
