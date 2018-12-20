@@ -25,6 +25,7 @@ limitations under the License. */
 #include <Storages/StorageLiveView.h>
 #include <Storages/StorageFactory.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
+#include <Parsers/ASTSubquery.h>
 
 namespace DB
 {
@@ -78,7 +79,10 @@ static void extractDependentTable(const Context & context, const ASTPtr & query,
         }
     }
     else if (table_expression->subquery)
-        extractDependentTable(context, table_expression->subquery->children.at(0), select_database_name, select_table_name);
+    {
+        auto * subquery = static_cast<const ASTSubquery *>(table_expression->subquery.get());
+        extractDependentTable(context, subquery->children.at(0), select_database_name, select_table_name);
+    }
     else
         throwCannotGetTable();
 }
@@ -103,7 +107,7 @@ StorageLiveView::StorageLiveView(
             DatabaseAndTableName(select_database_name, select_table_name),
             DatabaseAndTableName(database_name, table_name));
 
-    inner_query = query.select->ptr();
+    inner_query = query.select->list_of_selects->children.at(0);
     is_temporary = query.temporary;
     auto storage = local_context.getTable(select_database_name, select_table_name);
     sample_block = InterpreterSelectQuery(inner_query, local_context, storage).getSampleBlock();
