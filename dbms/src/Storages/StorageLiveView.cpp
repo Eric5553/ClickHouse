@@ -125,7 +125,7 @@ bool StorageLiveView::getNewBlocks()
     mergeable_blocks->push_back(new_mergeable_blocks);
 
     BlockInputStreamPtr from = std::make_shared<BlocksBlockInputStream>(std::make_shared<BlocksPtr>(new_mergeable_blocks));
-    auto proxy_storage = createProxyStorage(local_context.getTable(select_database_name, select_table_name), std::move(from));
+    auto proxy_storage = createProxyStorage(global_context.getTable(select_database_name, select_table_name), std::move(from));
     InterpreterSelectQuery select(inner_query->clone(), global_context, proxy_storage, QueryProcessingStage::Complete);
     BlockInputStreamPtr data = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
 
@@ -288,12 +288,12 @@ void StorageLiveView::drop()
 }
 
 BlockInputStreams StorageLiveView::read(
-    const Names & column_names,
-    const SelectQueryInfo & query_info,
-    const Context & context,
+    const Names & /*column_names*/,
+    const SelectQueryInfo & /*query_info*/,
+    const Context & /*context*/,
     QueryProcessingStage::Enum /*processed_stage*/,
-    const size_t max_block_size,
-    const unsigned num_streams)
+    const size_t /*max_block_size*/,
+    const unsigned /*num_streams*/)
 {
     /// add user to the blocks_ptr
     std::shared_ptr<BlocksPtr> stream_blocks_ptr = blocks_ptr;
@@ -346,7 +346,7 @@ BlockInputStreams StorageLiveView::watch(
     return { reader };
 }
 
-BlockOutputStreamPtr StorageLiveView::write(const ASTPtr & query, const Settings & settings)
+BlockOutputStreamPtr StorageLiveView::write(const ASTPtr & /*query*/, const Settings & /*settings*/)
 {
     return std::make_shared<LiveBlockOutputStream>(*this);
 }
@@ -355,8 +355,7 @@ void registerStorageLiveView(StorageFactory & factory)
 {
     factory.registerStorage("LiveView", [](const StorageFactory::Arguments & args)
     {
-        StorageLiveView::create(
-                args.table_name, args.database_name, args.local_context, args.query, args.columns);
+        return StorageLiveView::create(args.table_name, args.database_name, args.local_context, args.query, args.columns);
     });
 }
 
