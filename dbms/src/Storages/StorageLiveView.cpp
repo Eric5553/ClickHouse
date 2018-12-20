@@ -78,7 +78,7 @@ static void extractDependentTable(const Context & context, const ASTPtr & query,
         }
     }
     else if (table_expression->subquery)
-        extractDependentTable(context, table_expression->subquery, select_database_name, select_table_name);
+        extractDependentTable(context, table_expression->subquery->children.at(0), select_database_name, select_table_name);
     else
         throwCannotGetTable();
 }
