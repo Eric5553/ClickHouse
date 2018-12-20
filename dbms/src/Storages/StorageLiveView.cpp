@@ -49,12 +49,14 @@ static void extractDependentTable(const ASTPtr & query, String & select_database
 
     const ASTTablesInSelectQueryElement & tables_element =
             static_cast<const ASTTablesInSelectQueryElement &>(*tables_in_select_query.children.at(0));
-    ASTPtr query_table = tables_element.table_expression;
+    auto & table_expression_ptr = tables_element.table_expression;
 
-    if (!query_table)
+    if (!table_expression_ptr)
         return;
 
-    if (auto ast_id = typeid_cast<const ASTIdentifier *>(query_table.get()))
+    auto * table_expression = static_cast<const ASTTableExpression *>(table_expression_ptr.get());
+
+    if (auto ast_id = typeid_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get()))
     {
         if (ast_id->children.size() != 2)
         {
