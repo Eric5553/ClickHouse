@@ -101,6 +101,7 @@ public:
     Block getHeader() const override {
         Block header; /// TODO
         header.info.is_multiplexed = true;
+        return header;
     }
 
     String getName() const override { return "LiveChannelBlockInputStream"; }
