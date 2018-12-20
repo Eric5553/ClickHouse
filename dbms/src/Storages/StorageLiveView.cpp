@@ -37,12 +37,12 @@ namespace ErrorCodes
 }
 
 
-static void extractDependentTable(const ASTPtr & query, String & select_database_name, String & select_table_name)
+static void extractDependentTable(const Context & context, const ASTPtr & query, String & select_database_name, String & select_table_name)
 {
     auto throwCannotGetTable = []()
     {
         throw Exception("Logical error while creating StorageLiveView."
-                        " Could not retrieve table name from select query.",
+                        " Could not retrieve table name from select query",
                         DB::ErrorCodes::LOGICAL_ERROR);
     };
 
@@ -66,14 +66,19 @@ static void extractDependentTable(const ASTPtr & query, String & select_database
     {
         auto ast_id = static_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get());
 
-        if (ast_id->children.size() != 2)
-            throwCannotGetTable();
-
-        select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
-        select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
+        if (ast_id->children.size() == 2)
+        {
+            select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
+            select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
+        }
+        else
+        {
+            select_database_name = context.getCurrentDatabase();
+            select_table_name = ast_id.name;
+        }
     }
     else if (table_expression->subquery)
-        extractDependentTable(table_expression->subquery, select_database_name, select_table_name);
+        extractDependentTable(context, table_expression->subquery, select_database_name, select_table_name);
     else
         throwCannotGetTable();
 }
@@ -91,7 +96,7 @@ StorageLiveView::StorageLiveView(
     if (!query.select)
         throw Exception("SELECT query is not specified for " + getName(), ErrorCodes::INCORRECT_QUERY);
 
-    extractDependentTable(query.select->list_of_selects->children.at(0), select_database_name, select_table_name);
+    extractDependentTable(local_context, query.select->list_of_selects->children.at(0), select_database_name, select_table_name);
 
     if (!select_table_name.empty())
         global_context.addDependency(
