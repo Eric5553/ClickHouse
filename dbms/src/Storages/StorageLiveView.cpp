@@ -64,7 +64,7 @@ static void extractDependentTable(const ASTPtr & query, String & select_database
 
     if (table_expression->database_and_table_name)
     {
-        auto ast_id = static_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get()))
+        auto ast_id = static_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get());
 
         if (ast_id->children.size() != 2)
             throwCannotGetTable();
