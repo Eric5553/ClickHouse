@@ -41,7 +41,7 @@ StorageLiveChannel::StorageLiveChannel(
     const ASTCreateQuery & query,
     const ColumnsDescription & columns)
     : IStorage(columns), table_name(table_name_),
-    database_name(database_name_), global_context(local_context.getGlobalContext()), columns(columns)
+    database_name(database_name_), global_context(local_context.getGlobalContext())
 {
     if (!query.tables)
         throw Exception("No tables are specified for channel " + getName(), ErrorCodes::INCORRECT_QUERY);
@@ -209,7 +209,7 @@ void StorageLiveChannel::setSelectedTables()
         {
             auto storage = global_context.getTable(table.first, table.second);
             if ( storage.get() != this )
-                selected_tables->emplace_back(storage, storage->lockStructure(false, __PRETTY_FUNCTION__));
+                selected_tables->emplace_back(storage, storage->lockStructure(false));
         }
 
         (*selected_tables_ptr) = selected_tables;
@@ -226,12 +226,12 @@ void StorageLiveChannel::setSelectedTables()
 }
 
 BlockInputStreams StorageLiveChannel::watch(
-    const Names & column_names,
+    const Names & /*column_names*/,
     const SelectQueryInfo & query_info,
-    const Context & context,
+    const Context & /*context*/,
     QueryProcessingStage::Enum & processed_stage,
-    size_t max_block_size,
-    const unsigned num_streams)
+    size_t /*max_block_size*/,
+    const unsigned /*num_streams*/)
 {
     ASTWatchQuery & query = typeid_cast<ASTWatchQuery &>(*query_info.query);
 
@@ -260,7 +260,7 @@ BlockInputStreams StorageLiveChannel::watch(
     return { reader };
 }
 
-BlockOutputStreamPtr StorageLiveChannel::write(const ASTPtr & query, const Settings & settings)
+BlockOutputStreamPtr StorageLiveChannel::write(const ASTPtr & /*query*/, const Settings & /*settings*/)
 {
     return std::make_shared<LiveChannelBlockOutputStream>(*this);
 }
@@ -275,7 +275,7 @@ void StorageLiveChannel::addToChannel(const ASTPtr & values, const Context & con
     NamesAndTypesList new_alias_columns{};
     ColumnDefaults new_column_defaults{};
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
     {
         Poco::FastMutex::ScopedLock lock(mutex);
         LiveChannelTables new_tables = tables;
@@ -318,32 +318,32 @@ void StorageLiveChannel::addToChannel(const ASTPtr & values, const Context & con
             auto storage = global_context.getTable(table.first, table.second);
 
             if ( storage.get() != this )
-                new_selected_tables->emplace_back(storage, storage->lockStructure(false, __PRETTY_FUNCTION__));
+                new_selected_tables->emplace_back(storage, storage->lockStructure(false));
 
-            NamesAndTypesList columns = storage->getColumnsListNonMaterialized();
+            auto & columns_descr = storage->getColumns();
 
-            for (auto & pair : columns)
+            for (auto & pair : columns_descr.ordinary)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_columns->insert(new_columns->end(), pair);
             }
 
-            for (auto & pair : storage->materialized_columns)
+            for (auto & pair : columns_descr.materialized)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_materialized_columns.insert(new_materialized_columns.end(), pair);
             }
 
-            for (auto & pair : storage->alias_columns)
+            for (auto & pair : columns_descr.aliases)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_alias_columns.insert(new_alias_columns.end(), pair);
             }
 
-            for (auto & pair : storage->column_defaults)
+            for (auto & pair : columns_descr.defaults)
             {
                 if (!all_channel_columns.emplace(pair.first).second)
                     continue;
@@ -358,10 +358,10 @@ void StorageLiveChannel::addToChannel(const ASTPtr & values, const Context & con
 
             for (auto & table : new_tables)
             {
-                ASTPtr database_ast = std::make_shared<ASTIdentifier>(StringRange(), table.first, ASTIdentifier::Database);
-                ASTPtr table_ast = std::make_shared<ASTIdentifier>(StringRange(), table.second, ASTIdentifier::Table);
+                ASTPtr database_ast = ASTIdentifier::createSpecial(table.first);
+                ASTPtr table_ast = ASTIdentifier::createSpecial(table.second);
 
-                auto identifier = std::make_shared<ASTIdentifier>(StringRange(), table.first + "." + table.second, ASTIdentifier::Table);
+                auto identifier = ASTIdentifier::createSpecial(table.first + "." + table.second);
                 identifier->children = {database_ast, table_ast};
 
                 tables_list->children.emplace_back(identifier);
@@ -371,11 +371,9 @@ void StorageLiveChannel::addToChannel(const ASTPtr & values, const Context & con
             create_query_ast.set(create_query_ast.tables, tables_list);
         };
 
+        ColumnsDescription new_columns_description(*new_columns, new_materialized_columns, new_alias_columns, new_column_defaults, {});
 
-        context.getDatabase(database_name)->alterTable(
-            context, table_name,
-            *new_columns, new_materialized_columns, new_alias_columns, new_column_defaults,
-            ast_modifier);
+        context.getDatabase(database_name)->alterTable(context, table_name, new_columns_description, ast_modifier);
 
         for (auto & table : new_tables)
         {
@@ -397,11 +395,6 @@ void StorageLiveChannel::addToChannel(const ASTPtr & values, const Context & con
             (*refresh_tables_ptr) = new_refresh_tables;
             (*refresh_list_version)++;
         }
-
-        columns = new_columns;
-        materialized_columns = new_materialized_columns;
-        alias_columns = new_alias_columns;
-        column_defaults = new_column_defaults;
 
         /// notify all readers
         condition.broadcast();
@@ -429,7 +422,7 @@ void StorageLiveChannel::dropFromChannel(const ASTPtr & values, const Context & 
     NamesAndTypesList new_alias_columns{};
     ColumnDefaults new_column_defaults{};
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
 
     {
         Poco::FastMutex::ScopedLock lock(mutex);
@@ -480,32 +473,32 @@ void StorageLiveChannel::dropFromChannel(const ASTPtr & values, const Context & 
             auto storage = global_context.getTable(table.first, table.second);
 
             if ( storage.get() != this )
-                new_selected_tables->emplace_back(storage, storage->lockStructure(false, __PRETTY_FUNCTION__));
+                new_selected_tables->emplace_back(storage, storage->lockStructure(false));
 
-            NamesAndTypesList columns = storage->getColumnsListNonMaterialized();
+            auto & columns_descr = storage->getColumns();
 
-            for (auto & pair : columns)
+            for (auto & pair : columns_descr.ordinary)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_columns->insert(new_columns->end(), pair);
             }
 
-            for (auto & pair : storage->materialized_columns)
+            for (auto & pair : columns_descr.materialized)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_materialized_columns.insert(new_materialized_columns.end(), pair);
             }
 
-            for (auto & pair : storage->alias_columns)
+            for (auto & pair : columns_descr.aliases)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_alias_columns.insert(new_alias_columns.end(), pair);
             }
 
-            for (auto & pair : storage->column_defaults)
+            for (auto & pair : columns_descr.defaults)
             {
                 if (!all_channel_columns.emplace(pair.first).second)
                     continue;
@@ -520,10 +513,10 @@ void StorageLiveChannel::dropFromChannel(const ASTPtr & values, const Context & 
 
             for (auto & table : new_tables)
             {
-                ASTPtr database_ast = std::make_shared<ASTIdentifier>(StringRange(), table.first, ASTIdentifier::Database);
-                ASTPtr table_ast = std::make_shared<ASTIdentifier>(StringRange(), table.second, ASTIdentifier::Table);
+                ASTPtr database_ast = ASTIdentifier::createSpecial(table.first);
+                ASTPtr table_ast = ASTIdentifier::createSpecial(table.second);
 
-                auto identifier = std::make_shared<ASTIdentifier>(StringRange(), table.first + "." + table.second, ASTIdentifier::Table);
+                auto identifier = ASTIdentifier::createSpecial(table.first + "." + table.second);
                 identifier->children = {database_ast, table_ast};
 
                 tables_list->children.emplace_back(identifier);
@@ -533,10 +526,9 @@ void StorageLiveChannel::dropFromChannel(const ASTPtr & values, const Context & 
             create_query_ast.set(create_query_ast.tables, tables_list);
         };
 
-        context.getDatabase(database_name)->alterTable(
-            context, table_name,
-            *new_columns, new_materialized_columns, new_alias_columns, new_column_defaults,
-            ast_modifier);
+        ColumnsDescription new_columns_description(*new_columns, new_materialized_columns, new_alias_columns, new_column_defaults, {});
+
+        context.getDatabase(database_name)->alterTable(context, table_name, new_columns_description, ast_modifier);
 
         for (auto & table : remove_tables)
             global_context.removeDependency(
@@ -546,11 +538,6 @@ void StorageLiveChannel::dropFromChannel(const ASTPtr & values, const Context & 
         tables = new_tables;
         (*selected_tables_ptr) = new_selected_tables;
         (*storage_list_version)++;
-
-        columns = new_columns;
-        materialized_columns = new_materialized_columns;
-        alias_columns = new_alias_columns;
-        column_defaults = new_column_defaults;
 
         /// notify all readers
         condition.broadcast();
@@ -578,7 +565,7 @@ void StorageLiveChannel::modifyChannel(const ASTPtr & values, const Context & co
     NamesAndTypesList new_alias_columns{};
     ColumnDefaults new_column_defaults{};
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
 
     {
         Poco::FastMutex::ScopedLock lock(mutex);
@@ -625,33 +612,33 @@ void StorageLiveChannel::modifyChannel(const ASTPtr & values, const Context & co
             auto storage = global_context.getTable(table.first, table.second);
 
             if ( storage.get() != this ) {
-                new_selected_tables->emplace_back(storage, storage->lockStructure(false, __PRETTY_FUNCTION__));
+                new_selected_tables->emplace_back(storage, storage->lockStructure(false));
                 new_refresh_tables->emplace_back(storage);
             }
-            NamesAndTypesList columns = storage->getColumnsListNonMaterialized();
+            auto & columns_description = storage->getColumns();
 
-            for (auto & pair : columns)
+            for (auto & pair : columns_description.ordinary)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_columns->insert(new_columns->end(), pair);
             }
 
-            for (auto & pair : storage->materialized_columns)
+            for (auto & pair : columns_description.materialized)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_materialized_columns.insert(new_materialized_columns.end(), pair);
             }
 
-            for (auto & pair : storage->alias_columns)
+            for (auto & pair : columns_description.aliases)
             {
                 if (!all_channel_columns.emplace(pair.name).second)
                     continue;
                 new_alias_columns.insert(new_alias_columns.end(), pair);
             }
 
-            for (auto & pair : storage->column_defaults)
+            for (auto & pair : columns_description.defaults)
             {
                 if (!all_channel_columns.emplace(pair.first).second)
                     continue;
@@ -666,10 +653,10 @@ void StorageLiveChannel::modifyChannel(const ASTPtr & values, const Context & co
 
             for (auto & table : new_tables)
             {
-                ASTPtr database_ast = std::make_shared<ASTIdentifier>(StringRange(), table.first, ASTIdentifier::Database);
-                ASTPtr table_ast = std::make_shared<ASTIdentifier>(StringRange(), table.second, ASTIdentifier::Table);
+                ASTPtr database_ast = ASTIdentifier::createSpecial(table.first);
+                ASTPtr table_ast = ASTIdentifier::createSpecial(table.second);
 
-                auto identifier = std::make_shared<ASTIdentifier>(StringRange(), table.first + "." + table.second, ASTIdentifier::Table);
+                auto identifier = ASTIdentifier::createSpecial(table.first + "." + table.second);
                 identifier->children = {database_ast, table_ast};
 
                 tables_list->children.emplace_back(identifier);
@@ -679,10 +666,9 @@ void StorageLiveChannel::modifyChannel(const ASTPtr & values, const Context & co
             create_query_ast.set(create_query_ast.tables, tables_list);
         };
 
-        context.getDatabase(database_name)->alterTable(
-            context, table_name,
-            *new_columns, new_materialized_columns, new_alias_columns, new_column_defaults,
-            ast_modifier);
+        ColumnsDescription new_columns_description(*new_columns, new_materialized_columns, new_alias_columns, new_column_defaults, {});
+
+        context.getDatabase(database_name)->alterTable(context, table_name,new_columns_description, ast_modifier);
 
         for (auto & table : new_tables)
         {
@@ -716,11 +702,6 @@ void StorageLiveChannel::modifyChannel(const ASTPtr & values, const Context & co
             (*refresh_list_version)++;
         }
 
-        columns = new_columns;
-        materialized_columns = new_materialized_columns;
-        alias_columns = new_alias_columns;
-        column_defaults = new_column_defaults;
-
         /// notify all readers
         condition.broadcast();
     }
@@ -742,7 +723,7 @@ void StorageLiveChannel::refreshInChannel(const ASTPtr & values, const Context &
     String view_database_name;
     String view_table_name;
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
 
     {
         Poco::FastMutex::ScopedLock lock(mutex);
@@ -805,7 +786,7 @@ void StorageLiveChannel::suspendInChannel(const ASTPtr & values, const Context &
     String view_database_name;
     String view_table_name;
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
 
     {
         Poco::FastMutex::ScopedLock lock(mutex);
@@ -873,7 +854,7 @@ void StorageLiveChannel::resumeInChannel(const ASTPtr & values, const Context & 
     String view_database_name;
     String view_table_name;
 
-    auto alter_lock = lockStructureForAlter(__PRETTY_FUNCTION__);
+    auto alter_lock = lockStructureForAlter();
 
     {
         Poco::FastMutex::ScopedLock lock(mutex);
@@ -940,7 +921,7 @@ void registerStorageLiveChannel(StorageFactory & factory)
 {
     factory.registerStorage("LiveChannel", [](const StorageFactory::Arguments & args)
     {
-        StorageLiveChannel::create(
+        return StorageLiveChannel::create(
                 args.table_name, args.database_name, args.local_context, args.query, args.columns);
     });
 }
