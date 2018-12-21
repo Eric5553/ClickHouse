@@ -34,7 +34,8 @@ namespace ErrorCodes
 class ProxyStorage : public IStorage
 {
 public:
-    ProxyStorage(StoragePtr storage, BlockInputStreams streams) : storage(std::move(storage)), streams(std::move(streams)) {}
+    ProxyStorage(StoragePtr storage, BlockInputStreams streams, QueryProcessingStage::Enum to_stage)
+    : storage(std::move(storage)), streams(std::move(streams)), to_stage(to_stage) {}
 
 public:
     std::string getName() const override { return "ProxyStorage(" + storage->getName() + ")"; }
@@ -48,7 +49,7 @@ public:
     bool supportsReplication() const override { return storage->supportsReplication(); }
     bool supportsDeduplication() const override { return storage->supportsDeduplication(); }
 
-    QueryProcessingStage::Enum getQueryProcessingStage(const Context & /*context*/) const override { return QueryProcessingStage::WithMergeableState; }
+    QueryProcessingStage::Enum getQueryProcessingStage(const Context & /*context*/) const override { return to_stage; }
 
     BlockInputStreams read(
             const Names & /*column_names*/,
@@ -81,11 +82,12 @@ public:
 private:
     StoragePtr storage;
     BlockInputStreams streams;
+    QueryProcessingStage::Enum to_stage;
 };
 
-StoragePtr createProxyStorage(StoragePtr storage, BlockInputStreams streams)
+StoragePtr createProxyStorage(StoragePtr storage, BlockInputStreams streams, QueryProcessingStage::Enum to_stage)
 {
-    return std::make_shared<ProxyStorage>(std::move(storage), std::move(streams));
+    return std::make_shared<ProxyStorage>(std::move(storage), std::move(streams), to_stage);
 }
 
 PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
@@ -177,7 +179,7 @@ static void writeIntoLiveView(StorageLiveView & live_view,
     {
         auto parent_storage = context.getTable(live_view.getSelectDatabaseName(), live_view.getSelectTableName());
         BlockInputStreams streams = {std::make_shared<OneBlockInputStream>(block)};
-        auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(streams));
+        auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(streams), QueryProcessingStage::FetchColumns);
         InterpreterSelectQuery select_block(live_view.getInnerQuery(), context, proxy_storage,
                                             QueryProcessingStage::WithMergeableState);
         auto data_mergeable_stream = std::make_shared<MaterializingBlockInputStream>(select_block.execute().in);
@@ -230,7 +232,7 @@ static void writeIntoLiveView(StorageLiveView & live_view,
     }
 
     auto parent_storage = context.getTable(live_view.getSelectDatabaseName(), live_view.getSelectTableName());
-    auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(from));
+    auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(from), QueryProcessingStage::WithMergeableState);
     InterpreterSelectQuery select(live_view.getInnerQuery(), context, proxy_storage, QueryProcessingStage::Complete);
     BlockInputStreamPtr data = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
     while (Block this_block = data->read())
