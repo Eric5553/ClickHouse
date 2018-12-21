@@ -429,7 +429,7 @@ ColumnsDescription InterpreterCreateQuery::setColumns(
         for (size_t i = 0; i < as_select_sample.columns(); ++i)
             res.ordinary.emplace_back(as_select_sample.safeGetByPosition(i).name, as_select_sample.safeGetByPosition(i).type);
     }
-    else
+    else if (!create.is_live_channel)
         throw Exception("Incorrect CREATE query: required list of column descriptions or AS section or SELECT.", ErrorCodes::INCORRECT_QUERY);
 
     /// Even if query has list of columns, canonicalize it (unfold Nested columns).
