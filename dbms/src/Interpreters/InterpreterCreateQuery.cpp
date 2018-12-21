@@ -43,6 +43,7 @@
 #include <Databases/IDatabase.h>
 
 #include <Common/ZooKeeper/ZooKeeper.h>
+#include <Storages/StorageLiveView.h>
 #include "DatabaseAndTableWithAlias.h"
 
 
@@ -62,6 +63,7 @@ namespace ErrorCodes
     extern const int DATABASE_ALREADY_EXISTS;
     extern const int QUERY_IS_PROHIBITED;
     extern const int THERE_IS_NO_DEFAULT_VALUE;
+    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
 }
 
 
@@ -437,7 +439,12 @@ ColumnsDescription InterpreterCreateQuery::setColumns(
         for (auto & table : create.tables->children)
         {
             DatabaseAndTableWithAlias table_name(typeid_cast<ASTIdentifier &>(*table), context.getCurrentDatabase());
-            auto storage = context.getTable(table_name.database, table_name.table);;
+            auto storage = context.getTable(table_name.database, table_name.table);
+
+            if (!dynamic_cast<const StorageLiveView *>(storage.get()))
+                throw Exception("StorageLiveView expected as dependent table for LIVE CHANNEL,"
+                                " got " + storage->getName(), ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+
             auto & storage_columns = storage->getColumns();
             for (auto & col : storage_columns.ordinary)
             {
