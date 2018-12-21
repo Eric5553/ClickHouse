@@ -271,13 +271,6 @@ void PushingToViewsBlockOutputStream::write(const Block & block)
     {
         writeIntoLiveView(*live_view, block, context, output);
     }
-    else if (dynamic_cast<const StorageLiveChannel *>(storage.get()))
-    {
-        /// Send only end of frame block to channel to signal that
-        /// new data is available
-        if (block.info.is_end_frame)
-            output->write(block);
-    }
     else
     {
         if (output)
