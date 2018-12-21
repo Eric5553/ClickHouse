@@ -27,6 +27,7 @@ limitations under the License. */
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/ASTSubquery.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
+#include <Interpreters/AddDefaultDatabaseVisitor.h>
 
 namespace DB
 {
