@@ -119,12 +119,23 @@ PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
         for (const auto & database_table : dependencies)
         {
             auto dependent_table = context.getTable(database_table.first, database_table.second);
-            auto & materialized_view = dynamic_cast<const StorageMaterializedView &>(*dependent_table);
 
-            if (StoragePtr inner_table = materialized_view.tryGetTargetTable())
-                addTableLock(inner_table->lockStructure(true));
+            ASTPtr query;
 
-            auto query = materialized_view.getInnerQuery();
+            if (auto * materialized_view = dynamic_cast<const StorageMaterializedView *>(dependent_table.get()))
+            {
+                if (StoragePtr inner_table = materialized_view->tryGetTargetTable())
+                    addTableLock(inner_table->lockStructure(true));
+
+                query = materialized_view->getInnerQuery();
+            }
+            else if (auto * live_view = dynamic_cast<const StorageLiveView *>(dependent_table.get()))
+                query = live_view->getInnerQuery();
+            else if (!dynamic_cast<const StorageLiveChannel *>(dependent_table.get()))
+                throw Exception("Unexpected type of dependent table. "
+                                "Expected MATERIALIZED VIEW, LIVE VIEW or LIVE CHANNEL; got "
+                                + dependent_table->getName(), ErrorCodes::UNKNOWN_STORAGE);
+
             BlockOutputStreamPtr out = std::make_shared<PushingToViewsBlockOutputStream>(
                 database_table.first, database_table.second, dependent_table, *views_context, ASTPtr());
             views.emplace_back(ViewInfo{std::move(query), database_table.first, database_table.second, std::move(out)});
@@ -364,8 +375,12 @@ void PushingToViewsBlockOutputStream::process(const Block & block, size_t view_n
     try
     {
         BlockInputStreamPtr from = std::make_shared<OneBlockInputStream>(block);
-        InterpreterSelectQuery select(view.query, *views_context, from);
-        BlockInputStreamPtr in = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
+        BlockInputStreamPtr in = from;
+        if (view.query)
+        {
+            InterpreterSelectQuery select(view.query, *views_context, from);
+            in = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
+        }
         /// Squashing is needed here because the materialized view query can generate a lot of blocks
         /// even when only one block is inserted into the parent table (e.g. if the query is a GROUP BY
         /// and two-level aggregation is triggered).
