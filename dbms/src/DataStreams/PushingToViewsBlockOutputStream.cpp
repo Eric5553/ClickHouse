@@ -273,7 +273,7 @@ void PushingToViewsBlockOutputStream::write(const Block & block)
 
     if (auto * live_view = dynamic_cast<StorageLiveView *>(storage.get()))
     {
-        writeIntoLiveView(*live_view, block, *views_context, output);
+        writeIntoLiveView(*live_view, block, context, output);
     }
     else if (dynamic_cast<const StorageLiveChannel *>(storage.get()))
     {
