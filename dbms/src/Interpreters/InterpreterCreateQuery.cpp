@@ -43,6 +43,7 @@
 #include <Databases/IDatabase.h>
 
 #include <Common/ZooKeeper/ZooKeeper.h>
+#include "DatabaseAndTableWithAlias.h"
 
 
 namespace DB
@@ -429,7 +430,27 @@ ColumnsDescription InterpreterCreateQuery::setColumns(
         for (size_t i = 0; i < as_select_sample.columns(); ++i)
             res.ordinary.emplace_back(as_select_sample.safeGetByPosition(i).name, as_select_sample.safeGetByPosition(i).type);
     }
-    else if (!create.is_live_channel)
+    else if (create.tables)
+    {
+        NamesAndTypesList columns;
+        NameSet names;
+        for (auto & table : create.tables->children)
+        {
+            DatabaseAndTableWithAlias table_name(typeid_cast<ASTIdentifier &>(*table), context.getCurrentDatabase());
+            auto storage = context.getTable(table_name.database, table_name.table);;
+            auto & storage_columns = storage->getColumns();
+            for (auto & col : storage_columns.ordinary)
+            {
+                if (!names.count(col.name))
+                {
+                    names.insert(col.name);
+                    columns.emplace_back(col);
+                }
+            }
+        }
+        res = ColumnsDescription(columns);
+    }
+    else
         throw Exception("Incorrect CREATE query: required list of column descriptions or AS section or SELECT.", ErrorCodes::INCORRECT_QUERY);
 
     /// Even if query has list of columns, canonicalize it (unfold Nested columns).
