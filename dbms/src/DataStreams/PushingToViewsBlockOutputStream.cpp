@@ -22,7 +22,6 @@ limitations under the License. */
 #include <Storages/StorageLiveView.h>
 #include <Storages/StorageLiveChannel.h>
 #include <DataStreams/SquashingBlockInputStream.h>
-#include <DataStreams/UnionBlockInputStream.h>
 
 namespace DB
 {
@@ -84,6 +83,10 @@ private:
     BlockInputStreams streams;
 };
 
+StoragePtr createProxyStorage(StoragePtr storage, BlockInputStreams streams)
+{
+    return std::make_shared<ProxyStorage>(std::move(storage), std::move(streams));
+}
 
 PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
     const String & database, const String & table, const StoragePtr & storage_,
@@ -172,10 +175,11 @@ static void writeIntoLiveView(StorageLiveView & live_view,
     BlocksPtr new_mergeable_blocks = std::make_shared<Blocks>();
 
     {
-        //auto parent_storage = context.getTable(live_view.getSelectDatabaseName(), live_view.getSelectTableName());
-        BlockInputStreamPtr stream = std::make_shared<OneBlockInputStream>(block);
-        //auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(streams));
-        InterpreterSelectQuery select_block(live_view.getInnerQuery(), context, stream, QueryProcessingStage::WithMergeableState);
+        auto parent_storage = context.getTable(live_view.getSelectDatabaseName(), live_view.getSelectTableName());
+        BlockInputStreams streams = {std::make_shared<OneBlockInputStream>(block)};
+        auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(streams));
+        InterpreterSelectQuery select_block(live_view.getInnerQuery(), context, proxy_storage,
+                                            QueryProcessingStage::WithMergeableState);
         auto data_mergeable_stream = std::make_shared<MaterializingBlockInputStream>(select_block.execute().in);
         while (Block this_block = data_mergeable_stream->read())
             new_mergeable_blocks->push_back(this_block);
@@ -226,10 +230,8 @@ static void writeIntoLiveView(StorageLiveView & live_view,
     }
 
     auto parent_storage = context.getTable(live_view.getSelectDatabaseName(), live_view.getSelectTableName());
-    /// auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(from));
-
-    auto stream = std::make_shared<UnionBlockInputStream>(from, nullptr, 1);
-    InterpreterSelectQuery select(live_view.getInnerQuery(), context, stream, QueryProcessingStage::Complete);
+    auto proxy_storage = std::make_shared<ProxyStorage>(parent_storage, std::move(from));
+    InterpreterSelectQuery select(live_view.getInnerQuery(), context, proxy_storage, QueryProcessingStage::Complete);
     BlockInputStreamPtr data = std::make_shared<MaterializingBlockInputStream>(select.execute().in);
     while (Block this_block = data->read())
     {
