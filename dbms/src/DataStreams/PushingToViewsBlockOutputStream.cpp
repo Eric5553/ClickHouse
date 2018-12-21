@@ -131,12 +131,6 @@ PushingToViewsBlockOutputStream::PushingToViewsBlockOutputStream(
 
                 query = materialized_view->getInnerQuery();
             }
-            else if (auto * live_view = dynamic_cast<const StorageLiveView *>(dependent_table.get()))
-                query = live_view->getInnerQuery();
-            else if (!dynamic_cast<const StorageLiveChannel *>(dependent_table.get()))
-                throw Exception("Unexpected type of dependent table. "
-                                "Expected MATERIALIZED VIEW, LIVE VIEW or LIVE CHANNEL; got "
-                                + dependent_table->getName(), ErrorCodes::UNKNOWN_STORAGE);
 
             BlockOutputStreamPtr out = std::make_shared<PushingToViewsBlockOutputStream>(
                 database_table.first, database_table.second, dependent_table, *views_context, ASTPtr());
