@@ -260,11 +260,11 @@ void PushingToViewsBlockOutputStream::write(const Block & block)
       */
     Nested::validateArraySizes(block);
 
-    if (auto * live_view = typeid_cast<StorageLiveView *>(storage.get()))
+    if (auto * live_view = dynamic_cast<StorageLiveView *>(storage.get()))
     {
         writeIntoLiveView(*live_view, block, *views_context, output);
     }
-    else if (typeid_cast<const StorageLiveChannel *>(storage.get()))
+    else if (dynamic_cast<const StorageLiveChannel *>(storage.get()))
     {
         /// Send only end of frame block to channel to signal that
         /// new data is available

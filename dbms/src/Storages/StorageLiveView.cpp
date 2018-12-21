@@ -35,56 +35,65 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int INCORRECT_QUERY;
     extern const int TABLE_WAS_NOT_DROPPED;
+    extern const int QUERY_IS_NOT_SUPPORTED_IN_MATERIALIZED_VIEW;
 }
 
 
-static void extractDependentTable(const Context & context, const ASTPtr & query, String & select_database_name, String & select_table_name)
+static void extractDependentTable(ASTSelectQuery & query, String & select_database_name, String & select_table_name)
 {
-    auto throwCannotGetTable = []()
+    auto db_and_table = getDatabaseAndTable(query, 0);
+    ASTPtr subquery = getTableFunctionOrSubquery(query, 0);
+
+    if (!db_and_table && !subquery)
+        return;
+
+    if (db_and_table)
     {
-        throw Exception("Logical error while creating StorageLiveView."
-                        " Could not retrieve table name from select query",
-                        DB::ErrorCodes::LOGICAL_ERROR);
-    };
+        select_table_name = db_and_table->table;
 
-    auto select = typeid_cast<const ASTSelectQuery *>(query.get());
-    if (!select)
-        throwCannotGetTable();
-
-    auto & tables_in_select_query = static_cast<const ASTTablesInSelectQuery &>(*select->tables);
-    if (tables_in_select_query.children.empty())
-        throwCannotGetTable();
-
-    auto & tables_element =
-            static_cast<const ASTTablesInSelectQueryElement &>(*tables_in_select_query.children.at(0));
-
-    if (!tables_element.table_expression)
-        throwCannotGetTable();
-
-    auto * table_expression = static_cast<const ASTTableExpression *>(tables_element.table_expression.get());
-
-    if (table_expression->database_and_table_name)
-    {
-        auto ast_id = static_cast<const ASTIdentifier *>(table_expression->database_and_table_name.get());
-
-        if (ast_id->children.size() == 2)
+        if (db_and_table->database.empty())
         {
-            select_database_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(0)).name;
-            select_table_name = typeid_cast<const ASTIdentifier &>(*ast_id->children.at(1)).name;
+            db_and_table->database = select_database_name;
+            AddDefaultDatabaseVisitor visitor(select_database_name);
+            visitor.visit(query);
         }
         else
-        {
-            select_database_name = context.getCurrentDatabase();
-            select_table_name = ast_id->name;
-        }
+            select_database_name = db_and_table->database;
     }
-    else if (table_expression->subquery)
+    else if (auto ast_select = typeid_cast<ASTSelectWithUnionQuery *>(subquery.get()))
     {
-        auto * subquery = static_cast<const ASTSubquery *>(table_expression->subquery.get());
-        extractDependentTable(context, subquery->children.at(0), select_database_name, select_table_name);
+        if (ast_select->list_of_selects->children.size() != 1)
+            throw Exception("UNION is not supported for LIVE VIEW", ErrorCodes::QUERY_IS_NOT_SUPPORTED_IN_MATERIALIZED_VIEW);
+
+        auto & inner_query = ast_select->list_of_selects->children.at(0);
+
+        extractDependentTable(typeid_cast<ASTSelectQuery &>(*inner_query), select_database_name, select_table_name);
     }
     else
-        throwCannotGetTable();
+        throw Exception("Logical error while creating StorageLiveView."
+                        " Could not retrieve table name from select query.",
+                        DB::ErrorCodes::LOGICAL_ERROR);
+}
+
+
+static void checkAllowedQueries(const ASTSelectQuery & query)
+{
+    if (query.prewhere_expression || query.final() || query.sample_size())
+        throw Exception("LIVE VIEW cannot have PREWHERE, SAMPLE or FINAL.", DB::ErrorCodes::QUERY_IS_NOT_SUPPORTED_IN_MATERIALIZED_VIEW);
+
+    ASTPtr subquery = getTableFunctionOrSubquery(query, 0);
+    if (!subquery)
+        return;
+
+    if (auto ast_select = typeid_cast<const ASTSelectWithUnionQuery *>(subquery.get()))
+    {
+        if (ast_select->list_of_selects->children.size() != 1)
+            throw Exception("UNION is not supported for LIVE VIEW", ErrorCodes::QUERY_IS_NOT_SUPPORTED_IN_MATERIALIZED_VIEW);
+
+        const auto & inner_query = ast_select->list_of_selects->children.at(0);
+
+        checkAllowedQueries(typeid_cast<const ASTSelectQuery &>(*inner_query));
+    }
 }
 
 
@@ -100,14 +109,21 @@ StorageLiveView::StorageLiveView(
     if (!query.select)
         throw Exception("SELECT query is not specified for " + getName(), ErrorCodes::INCORRECT_QUERY);
 
-    extractDependentTable(local_context, query.select->list_of_selects->children.at(0), select_database_name, select_table_name);
+    /// Default value, if only table name exist in the query
+    select_database_name = local_context.getCurrentDatabase();
+    if (query.select->list_of_selects->children.size() != 1)
+        throw Exception("UNION is not supported for LIVE VIEW", ErrorCodes::QUERY_IS_NOT_SUPPORTED_IN_MATERIALIZED_VIEW);
+
+    inner_query = query.select->list_of_selects->children.at(0);
+
+    ASTSelectQuery & select_query = typeid_cast<ASTSelectQuery &>(*inner_query);
+    extractDependentTable(select_query, select_database_name, select_table_name);
 
     if (!select_table_name.empty())
         global_context.addDependency(
             DatabaseAndTableName(select_database_name, select_table_name),
             DatabaseAndTableName(database_name, table_name));
 
-    inner_query = query.select->list_of_selects->children.at(0);
     is_temporary = query.temporary;
     auto storage = local_context.getTable(select_database_name, select_table_name);
     sample_block = InterpreterSelectQuery(inner_query, local_context, storage).getSampleBlock();
